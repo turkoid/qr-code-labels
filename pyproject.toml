@@ -1,0 +1,15 @@
+[project]
+name = "qr-code-labels"
+version = "0.1.0"
+description = "Generate QR code smart labels for inventory, moving, etc"
+dependencies = []
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.13"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.5.1",
+    "ruff>=0.14.10",
+]

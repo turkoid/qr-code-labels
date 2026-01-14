@@ -1,0 +1,8 @@
+_commit: v1.0.0
+_src_path: gh:turkoid/python-cli-template
+package_name: qr_code_labels
+project_author: turkoid
+project_description: Generate QR code smart labels for inventory, moving, etc
+project_name: QR Code Labels
+project_slug: qr-code-labels
+python_version: '3.13'
