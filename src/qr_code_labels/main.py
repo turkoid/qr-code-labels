@@ -137,12 +137,13 @@ class Generator:
 
         self._pages.append(page)
 
-    def _write_codes_to_file(self, codes: list[str]) -> Path:
+    def _write_codes_to_file(self, codes: list[str]) -> None:
+        if not self.save_codes:
+            return
         filename = f"{self._base_filename}_codes.txt"
         filepath = self.output_dir.joinpath(filename)
         filepath.parent.mkdir(parents=True, exist_ok=True)
         filepath.write_text("\n".join(codes))
-        return filepath
 
     def _save_pdf(self, codes: list[str]) -> None:
         combined_pdf = PdfWriter()
