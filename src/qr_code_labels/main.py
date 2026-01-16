@@ -122,8 +122,8 @@ class Generator:
                 page.append(
                     svg.Use(
                         code,
-                        col * self._qr_size_px + offset,
-                        row * self._qr_size_px + offset,
+                        col * (self._qr_size_px + offset) + offset,
+                        row * (self._qr_size_px + offset) + offset,
                     )
                 )
         # add cutout lines
