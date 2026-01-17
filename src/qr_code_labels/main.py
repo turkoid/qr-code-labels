@@ -110,20 +110,23 @@ class Generator:
         if not page_codes:
             return
 
-        page = svg.Drawing(
-            *self._canvas_dim, origin=(0, 0), font_family=QR_LABEL_FONT_FAMILY
-        )
+        page = svg.Drawing(*self._canvas_dim, font_family=QR_LABEL_FONT_FAMILY)
+        canvas_dim_in = tuple(f"{v}in" for v in self._canvas_dim.scale(1 / DPI))
+        page.set_render_size(*canvas_dim_in)
         for svg_def in self._common_defs.values():
             page.append_def(svg_def)
 
+        qr_size = self._qr_size_px
+        if self.include_cut_lines:
+            qr_size += 1
         offset = 1 if self.include_cut_lines else 0
         for row, row_codes in enumerate(page_codes):
             for col, code in enumerate(row_codes):
                 page.append(
                     svg.Use(
                         code,
-                        col * (self._qr_size_px + offset) + offset,
-                        row * (self._qr_size_px + offset) + offset,
+                        col * qr_size + offset,
+                        row * qr_size + offset,
                     )
                 )
         # add cutout lines
@@ -131,9 +134,9 @@ class Generator:
             h_line = self._common_defs["h_cut_line"]
             v_line = self._common_defs["v_cut_line"]
             for x in range(int(self._grid_dim.width + 1)):
-                page.append(svg.Use(v_line, x * (self._qr_size_px + 1), 0))
+                page.append(svg.Use(v_line, x * qr_size, 0))
             for y in range(int(self._grid_dim.height + 1)):
-                page.append(svg.Use(h_line, 0, y * (self._qr_size_px + 1)))
+                page.append(svg.Use(h_line, 0, y * qr_size))
 
         self._pages.append(page)
 
@@ -293,9 +296,9 @@ class Generator:
 
 if __name__ == "__main__":
     generator = Generator(
-        num_codes=75,
+        num_codes=1,
         repeat=5,
-        scale=1.5,
+        scale=2,
         output_dir=Path("qr_codes"),
         name="moving",
         group_codes=True,
