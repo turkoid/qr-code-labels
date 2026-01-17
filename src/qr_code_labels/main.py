@@ -34,6 +34,7 @@ CODE_SIZE = 5
 # dimensions
 DPI = 300
 LETTER_DIM_IN = Dimensions2D(8.5, 11)
+RENDER_SIZE = (f"{LETTER_DIM_IN.width}in", f"{LETTER_DIM_IN.height}in")
 LETTER_DIM_PX = LETTER_DIM_IN.scale(DPI)
 PAGE_MARGIN_IN = 0.5
 PAGE_DIM = LETTER_DIM_IN.scale(DPI)
@@ -51,6 +52,12 @@ BASE_LABEL_DIM = Dimensions2D(QR_CONTENT_SIZE / 3, QR_MODULE_SIZE * 3)
 # font
 QR_LABEL_FONT_FAMILY = "JetBrains Mono, monospace"
 BASE_FONT_SIZE = 20
+
+# svg ids
+CODE_TEXT_BG_ID = "code_text_bg"
+H_CUT_LINE_ID = "h_line"
+V_CUT_LINE_ID = "v_line"
+CUT_LINES_ID = "cut_lines"
 
 
 def generate_code() -> str:
@@ -87,11 +94,16 @@ class Generator:
         _name = f"{_name}_" if _name else ""
         self._base_filename = f"qr_codes_{_name}{self.scale}x{self.scale}"
         self._svg_output_dir = self.output_dir.joinpath("svgs")
-        self._qr_size_px = self.scale * DPI
-        self._canvas_dim: Dimensions2D | None = None
-        self._grid_dim: Dimensions2D | None = None
+        self._qr_size_px = int(self.scale * DPI)
+        self._qr_label_dim = BASE_LABEL_DIM.scale(self.scale).resize(-1)
         self._common_defs: dict[str, svg.DrawingElement] = {}
         self._pages: list[svg.Drawing] = []
+
+        # calculated at generation
+        self._canvas_dim: Dimensions2D | None = None
+        self._grid_dim: Dimensions2D | None = None
+        self._x_offset: int = 0
+        self._y_offset: int = 0
 
         # remove old_files
         if self.save_svgs and self._svg_output_dir.exists():
@@ -111,12 +123,10 @@ class Generator:
             return
 
         page = svg.Drawing(*LETTER_DIM_PX, font_family=QR_LABEL_FONT_FAMILY)
-        page.set_render_size(f"{LETTER_DIM_IN.width}in", f"{LETTER_DIM_IN.height}in")
+        page.set_render_size(*RENDER_SIZE)
         for svg_def in self._common_defs.values():
             page.append_def(svg_def)
 
-        x_offset = (LETTER_DIM_PX.width - self._canvas_dim.width) // 2
-        y_offset = (LETTER_DIM_PX.height - self._canvas_dim.height) // 2
         qr_size = self._qr_size_px
         if self.include_cut_lines:
             qr_size += 1
@@ -125,18 +135,15 @@ class Generator:
                 page.append(
                     svg.Use(
                         code,
-                        x * qr_size + x_offset,
-                        y * qr_size + y_offset,
+                        x * qr_size + self._x_offset,
+                        y * qr_size + self._y_offset,
                     )
                 )
-        # add cutout lines
+
+        # add cut lines
         if self.include_cut_lines:
-            h_line = self._common_defs["h_cut_line"]
-            v_line = self._common_defs["v_cut_line"]
-            for x in range(int(self._grid_dim.width + 1)):
-                page.append(svg.Use(v_line, x * qr_size + x_offset, y_offset))
-            for y in range(int(self._grid_dim.height + 1)):
-                page.append(svg.Use(h_line, x_offset, y * qr_size + y_offset))
+            cut_lines = self._common_defs[CUT_LINES_ID]
+            page.append(svg.Use(cut_lines, 0, 0))
 
         self._pages.append(page)
 
@@ -176,47 +183,48 @@ class Generator:
         pdf_file.parent.mkdir(parents=True, exist_ok=True)
         combined_pdf.write(pdf_file)
 
-    def _calculate_grid_dim(self) -> Dimensions2D:
+    def _calculate_grid_dim(self) -> None:
         qr_size = self._qr_size_px
         page_size = PAGE_WITHOUT_MARGINS_PX
         if self.include_cut_lines:
             qr_size += 1
             page_size = page_size.resize(-1)
         grid_dim = Dimensions2D(page_size.width // qr_size, page_size.height // qr_size)
-        return grid_dim
+        self._grid_dim = grid_dim
 
-    def _calculate_canvas_dim(self) -> Dimensions2D:
+    def _calculate_canvas_dim(self) -> None:
         if self.include_cut_lines:
             canvas_size = self._grid_dim.scale(self._qr_size_px + 1).resize(1)
         else:
             canvas_size = self._grid_dim.scale(self._qr_size_px)
-        return canvas_size
+        self._canvas_dim = canvas_size
 
-    def create_labels(self) -> None:
-        codes = self.generate_codes()
+    def _calculate_offsets(self) -> None:
+        self._x_offset = int((LETTER_DIM_PX.width - self._canvas_dim.width) / 2)
+        self._y_offset = int((LETTER_DIM_PX.height - self._canvas_dim.height) / 2)
 
-        # generate sizes
-        self._qr_size_px = int(self.scale * DPI)
-        self._grid_dim = self._calculate_grid_dim()
-        self._canvas_dim = self._calculate_canvas_dim()
-        center = self._qr_size_px / 2
-        center_pt = (center, center)
-        qr_label_dim = BASE_LABEL_DIM.scale(self.scale).resize(-1)
-        font_size = int(BASE_FONT_SIZE * self.scale)
+    def _calculate_vars(self) -> None:
+        self._calculate_grid_dim()
+        self._calculate_canvas_dim()
+        self._calculate_offsets()
 
-        # shared elements
+    def _create_common_defs(self) -> None:
         common_elements = []
+
+        # label background
         code_text_bg = svg.Rectangle(
-            0, 0, *qr_label_dim, id="code_text_bg", fill="white", stroke="black"
+            0, 0, *self._qr_label_dim, id=CODE_TEXT_BG_ID, fill="white", stroke="black"
         )
         common_elements.append(code_text_bg)
+
+        # cut lines
         if self.include_cut_lines:
             h_line = svg.Line(
                 0,
                 0,
-                self._canvas_dim.width,
+                PAGE_WITHOUT_MARGINS_PX.width,
                 0,
-                id="h_cut_line",
+                id=H_CUT_LINE_ID,
                 stroke="black",
                 stroke_dasharray="1,5",
                 stroke_width=1,
@@ -225,15 +233,45 @@ class Generator:
                 0,
                 0,
                 0,
-                self._canvas_dim.height,
-                id="v_cut_line",
+                PAGE_WITHOUT_MARGINS_PX.height,
+                id=V_CUT_LINE_ID,
                 stroke="black",
                 stroke_dasharray="1,5",
                 stroke_width=1,
             )
+
+            cut_lines = svg.Group(id=CUT_LINES_ID)
+            qr_size_with_line = self._qr_size_px + 1
+            for x in range(int(self._grid_dim.width + 1)):
+                cut_lines.append(
+                    svg.Use(
+                        v_line, x * qr_size_with_line + self._x_offset, PAGE_MARGIN_PX
+                    )
+                )
+            for y in range(int(self._grid_dim.height + 1)):
+                cut_lines.append(
+                    svg.Use(
+                        h_line, PAGE_MARGIN_PX, y * qr_size_with_line + self._y_offset
+                    )
+                )
+
             common_elements.append(h_line)
             common_elements.append(v_line)
+            common_elements.append(cut_lines)
+
         self._common_defs = {ele.id: ele for ele in common_elements}
+
+    def create_labels(self) -> None:
+        codes = self.generate_codes()
+
+        # generate sizes
+        self._qr_size_px = int(self.scale * DPI)
+        self._calculate_vars()
+        center = self._qr_size_px / 2
+        center_pt = (center, center)
+        font_size = int(BASE_FONT_SIZE * self.scale)
+
+        self._create_common_defs()
 
         if self.group_codes and self.fill_group:
             _repeat = int(
@@ -273,7 +311,10 @@ class Generator:
             qr_code_with_label = svg.Group(id=code)
             qr_code_with_label.append(svg.Use(qr_code, 0, 0))
             qr_code_with_label.append(
-                svg.Use(code_text_bg, *qr_label_dim.center(center_pt))
+                svg.Use(
+                    self._common_defs["code_text_bg"],
+                    *self._qr_label_dim.center(center_pt),
+                )
             )
             qr_code_with_label.append(svg.Use(code_text, 0, 0))
 
