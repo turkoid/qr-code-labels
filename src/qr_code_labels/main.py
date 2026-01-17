@@ -30,12 +30,12 @@ class Dimensions2D(NamedTuple):
 ALPHANUM_UPPER = f"{string.ascii_uppercase}{string.digits}".replace("Q", "")
 CODE_SIZE = 5
 
-# sizes in inches
-LETTER_DIM_IN = Dimensions2D(8.5, 11)
-PAGE_MARGIN_IN = 0.5
 
-# sizes in pixels
+# dimensions
 DPI = 300
+LETTER_DIM_IN = Dimensions2D(8.5, 11)
+LETTER_DIM_PX = LETTER_DIM_IN.scale(DPI)
+PAGE_MARGIN_IN = 0.5
 PAGE_DIM = LETTER_DIM_IN.scale(DPI)
 PAGE_MARGIN_PX = PAGE_MARGIN_IN * DPI
 PAGE_WITHOUT_MARGINS_PX = PAGE_DIM.resize(-2 * PAGE_MARGIN_PX)
@@ -110,23 +110,23 @@ class Generator:
         if not page_codes:
             return
 
-        page = svg.Drawing(*self._canvas_dim, font_family=QR_LABEL_FONT_FAMILY)
-        canvas_dim_in = tuple(f"{v}in" for v in self._canvas_dim.scale(1 / DPI))
-        page.set_render_size(*canvas_dim_in)
+        page = svg.Drawing(*LETTER_DIM_PX, font_family=QR_LABEL_FONT_FAMILY)
+        page.set_render_size(f"{LETTER_DIM_IN.width}in", f"{LETTER_DIM_IN.height}in")
         for svg_def in self._common_defs.values():
             page.append_def(svg_def)
 
+        x_offset = (LETTER_DIM_PX.width - self._canvas_dim.width) // 2
+        y_offset = (LETTER_DIM_PX.height - self._canvas_dim.height) // 2
         qr_size = self._qr_size_px
         if self.include_cut_lines:
             qr_size += 1
-        offset = 1 if self.include_cut_lines else 0
-        for row, row_codes in enumerate(page_codes):
-            for col, code in enumerate(row_codes):
+        for y, row_codes in enumerate(page_codes):
+            for x, code in enumerate(row_codes):
                 page.append(
                     svg.Use(
                         code,
-                        col * qr_size + offset,
-                        row * qr_size + offset,
+                        x * qr_size + x_offset,
+                        y * qr_size + y_offset,
                     )
                 )
         # add cutout lines
@@ -134,9 +134,9 @@ class Generator:
             h_line = self._common_defs["h_cut_line"]
             v_line = self._common_defs["v_cut_line"]
             for x in range(int(self._grid_dim.width + 1)):
-                page.append(svg.Use(v_line, x * qr_size, 0))
+                page.append(svg.Use(v_line, x * qr_size + x_offset, y_offset))
             for y in range(int(self._grid_dim.height + 1)):
-                page.append(svg.Use(h_line, 0, y * qr_size))
+                page.append(svg.Use(h_line, x_offset, y * qr_size + y_offset))
 
         self._pages.append(page)
 
