@@ -294,7 +294,9 @@ class Generator:
         else:
             _repeat = self.repeat
 
-        click.echo(f"Generating {self.count} QR codes, repeated {_repeat} times")
+        click.echo(
+            f"Generating {self.count}, {self.scale:0.2f}in QR codes, repeated {_repeat} times each"
+        )
         row = 0
         col = 0
         page_codes: list[list[svg.DrawingParentElement]] = []
@@ -352,7 +354,7 @@ class Generator:
 
 @click.command()
 @click.option(
-    "-n",
+    "-c",
     "--count",
     type=click.INT,
     default=1,
@@ -360,7 +362,7 @@ class Generator:
     show_default=True,
 )
 @click.option(
-    "-x",
+    "-r",
     "--repeat",
     type=click.INT,
     default=1,
@@ -382,6 +384,7 @@ class Generator:
     help="Output directory",
 )
 @click.option(
+    "-n",
     "--name",
     help="Name of the file(s) generated",
 )
