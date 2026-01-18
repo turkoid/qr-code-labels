@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Generate QR code smart labels for inventory, moving, etc"
 dependencies = [
     "cairosvg>=2.8.2",
+    "click>=8.3.1",
     "drawsvg>=2.4.1",
     "pypdf>=6.6.0",
     "segno>=1.6.6",
@@ -18,3 +19,10 @@ dev = [
     "pre-commit>=4.5.1",
     "ruff>=0.14.12",
 ]
+
+[build-system]
+requires = ["uv_build>=0.9.26,<0.10.0"]
+build-backend = "uv_build"
+
+[project.scripts]
+qr = "qr_code_labels.main:cli"

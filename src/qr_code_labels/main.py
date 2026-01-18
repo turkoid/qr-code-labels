@@ -6,6 +6,7 @@ from typing import NamedTuple
 from typing import Self
 
 import cairosvg
+import click
 import drawsvg as svg
 import segno
 from pypdf import PdfWriter
@@ -68,18 +69,18 @@ class Generator:
     def __init__(
         self,
         *,
-        num_codes: int,
+        count: int,
         repeat: int = 1,
         scale: float = 1.5,
-        output_dir: Path | None = None,
-        name: str | None = None,
-        include_cut_lines: bool = False,
-        save_svgs: bool = False,
-        save_codes: bool = False,
         group_codes: bool = False,
         fill_group: bool = False,
+        output_dir: Path | None = None,
+        name: str | None = None,
+        save_svgs: bool = False,
+        save_codes: bool = False,
+        include_cut_lines: bool = False,
     ) -> None:
-        self.num_codes = num_codes
+        self.count = count
         self.repeat = repeat
         self.scale = scale
         self.group_codes: bool = group_codes
@@ -92,8 +93,7 @@ class Generator:
 
         _name = self.name.replace(" ", "-")
         _name = f"{_name}_" if _name else ""
-        self._base_filename = f"qr_codes_{_name}{self.scale}x{self.scale}"
-        self._svg_output_dir = self.output_dir.joinpath("svgs")
+        self._base_filename = f"qr_codes_{_name}{self.scale:0.2f}in"
         self._qr_size_px = int(self.scale * DPI)
         self._qr_label_dim = BASE_LABEL_DIM.scale(self.scale).resize(-1)
         self._common_defs: dict[str, svg.DrawingElement] = {}
@@ -105,16 +105,10 @@ class Generator:
         self._x_offset: int = 0
         self._y_offset: int = 0
 
-        # remove old_files
-        if self.save_svgs and self._svg_output_dir.exists():
-            for file in self._svg_output_dir.glob(f"{self._base_filename}_p*.svg"):
-                if file.is_file():
-                    file.unlink()
-
     def generate_codes(self) -> list[str]:
-        codes = {generate_code(): True for _ in range(self.num_codes)}
+        codes = {generate_code(): True for _ in range(self.count)}
         # code collisions are unlikely, but this ensures uniqueness
-        while len(codes) < self.num_codes:
+        while len(codes) < self.count:
             codes[generate_code()] = True
         return list(codes.keys())
 
@@ -146,42 +140,6 @@ class Generator:
             page.append(svg.Use(cut_lines, 0, 0))
 
         self._pages.append(page)
-
-    def _write_codes_to_file(self, codes: list[str]) -> None:
-        if not self.save_codes:
-            return
-        filename = f"{self._base_filename}_codes.txt"
-        filepath = self.output_dir.joinpath(filename)
-        filepath.parent.mkdir(parents=True, exist_ok=True)
-        filepath.write_text("\n".join(codes))
-
-    def _save_pdf(self, codes: list[str]) -> None:
-        combined_pdf = PdfWriter()
-        metadata = {
-            "/Title": f"{self.name.title()} QR Labels",
-            "/GeneratedCodes": "\n".join(codes),
-        }
-        combined_pdf.add_metadata(metadata)
-
-        for page_index, page in enumerate(self._pages):
-            svg_buf = io.StringIO()
-            page.as_svg(svg_buf)
-            if self.save_svgs:
-                filename = f"{self._base_filename}_p{page_index}.svg"
-                svg_file = self._svg_output_dir.joinpath(filename)
-                svg_file.parent.mkdir(parents=True, exist_ok=True)
-                svg_file.write_text(svg_buf.getvalue())
-            svg_buf.seek(0)
-
-            pdf_buf = io.BytesIO()
-            cairosvg.svg2pdf(file_obj=svg_buf, write_to=pdf_buf)
-            pdf_buf.seek(0)
-            combined_pdf.append(pdf_buf)
-
-        filename = f"{self._base_filename}.pdf"
-        pdf_file = self.output_dir.joinpath(filename)
-        pdf_file.parent.mkdir(parents=True, exist_ok=True)
-        combined_pdf.write(pdf_file)
 
     def _calculate_grid_dim(self) -> None:
         qr_size = self._qr_size_px
@@ -261,6 +219,56 @@ class Generator:
 
         self._common_defs = {ele.id: ele for ele in common_elements}
 
+    def _save_pdf(self, codes: list[str]) -> None:
+        click.echo(f"Output directory: {self.output_dir.absolute()}")
+        if self.save_codes:
+            filename = f"{self._base_filename}_codes.txt"
+            codes_file = self.output_dir.joinpath(filename)
+            codes_file.parent.mkdir(parents=True, exist_ok=True)
+            codes_file.write_text("\n".join(codes))
+            click.echo(f"Created ./{codes_file}")
+
+        combined_pdf = PdfWriter()
+        metadata = {
+            "/Title": f"{self.name.title()} QR Labels",
+            "/GeneratedCodes": "\n".join(codes),
+        }
+        combined_pdf.add_metadata(metadata)
+
+        # remove old_files
+        svg_output_dir = self.output_dir.joinpath("svgs")
+        if self.save_svgs:
+            svg_output_dir.mkdir(parents=True, exist_ok=True)
+            svg_file_pattern = f"{self._base_filename}_p*.svg"
+            click.echo(f"Cleaning old '{svg_file_pattern}' in ./{svg_output_dir}")
+            for file in svg_output_dir.glob(svg_file_pattern):
+                if file.is_file():
+                    file.unlink()
+
+        for page_index, page in enumerate(self._pages):
+            svg_buf = io.StringIO()
+            page.as_svg(svg_buf)
+            if self.save_svgs:
+                filename = f"{self._base_filename}_p{page_index}.svg"
+                svg_file = svg_output_dir.joinpath(filename)
+                svg_file.write_text(svg_buf.getvalue())
+            svg_buf.seek(0)
+
+            pdf_buf = io.BytesIO()
+            cairosvg.svg2pdf(file_obj=svg_buf, write_to=pdf_buf)
+            pdf_buf.seek(0)
+            combined_pdf.append(pdf_buf)
+
+        if self.save_svgs:
+            click.echo(f"Created {len(self._pages)} svg file(s) in ./{svg_output_dir}")
+
+        filename = f"{self._base_filename}.pdf"
+        pdf_file = self.output_dir.joinpath(filename)
+        pdf_file.parent.mkdir(parents=True, exist_ok=True)
+        combined_pdf.write(pdf_file)
+
+        click.echo(f"Created ./{pdf_file}")
+
     def create_labels(self) -> None:
         codes = self.generate_codes()
 
@@ -274,12 +282,12 @@ class Generator:
         self._create_common_defs()
 
         if self.group_codes and self.fill_group:
-            _repeat = int(
-                ((self.repeat - 1) / self._grid_dim.width + 1) * self._grid_dim.width
-            )
+            width = int(self._grid_dim.width)
+            _repeat = ((self.repeat - 1) // width + 1) * width
         else:
             _repeat = self.repeat
 
+        click.echo(f"Generating {self.count} QR codes, repeated {_repeat} times")
         row = 0
         col = 0
         page_codes: list[list[svg.DrawingParentElement]] = []
@@ -331,21 +339,93 @@ class Generator:
                 page_codes[row].append(qr_code_with_label)
                 col += 1
         self._save_page(page_codes)
-        self._write_codes_to_file(codes)
+
         self._save_pdf(codes)
 
 
-if __name__ == "__main__":
+@click.command()
+@click.option(
+    "-n",
+    "--count",
+    type=click.IntRange(min=1),
+    default=1,
+    help="Number of unique codes",
+)
+@click.option(
+    "-x",
+    "--repeat",
+    type=click.IntRange(min=1),
+    default=1,
+    help="Number of copies",
+)
+@click.option(
+    "-s",
+    "--scale",
+    type=click.FloatRange(min=1.0),
+    default=1.5,
+    help="Scale factor (base = 1 inch)",
+)
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(path_type=Path),
+    help="Output directory",
+)
+@click.option(
+    "--name",
+    help="Name of the file(s) generated",
+)
+@click.option(
+    "--grouped",
+    is_flag=True,
+    help="Group same codes. Useful if using cut lines",
+)
+@click.option(
+    "--fill",
+    is_flag=True,
+    help="If grouped, repeat codes until row is filled",
+)
+@click.option(
+    "--include-cut-lines",
+    is_flag=True,
+    help="Draw dotted lines for cutting",
+)
+@click.option(
+    "--save-svgs",
+    is_flag=True,
+    help="Writes svg files generated to 'svgs' directory relative to '--output' directory",
+)
+@click.option(
+    "--save-codes",
+    is_flag=True,
+    help="Writes the generated codes to a text file relative '--output' directory",
+)
+def cli(
+    count: int,
+    repeat: int,
+    scale: float,
+    grouped: bool,
+    fill: bool,
+    output: Path,
+    name: str,
+    save_svgs: bool,
+    save_codes: bool,
+    include_cut_lines: bool,
+) -> None:
     generator = Generator(
-        num_codes=1,
-        repeat=5,
-        scale=2,
-        output_dir=Path("qr_codes"),
-        name="moving",
-        group_codes=True,
-        fill_group=True,
-        include_cut_lines=True,
-        save_svgs=True,
-        save_codes=False,
+        count=count,
+        repeat=repeat,
+        scale=scale,
+        group_codes=grouped,
+        fill_group=fill,
+        output_dir=output,
+        name=name,
+        save_svgs=save_svgs,
+        save_codes=save_codes,
+        include_cut_lines=include_cut_lines,
     )
     generator.create_labels()
+
+
+if __name__ == "__main__":
+    cli()
