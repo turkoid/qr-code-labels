@@ -2,9 +2,9 @@
 
 [![Copier](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/copier-org/copier/master/img/badge/badge-grayscale-inverted-border-orange.json)](https://github.com/copier-org/copier)
 
-This tool creates printable QR code labels to help you track your belongings efficiently.
+This tool creates printable QR codes with the encoded text in the center to help you track your belongings efficiently.
 
-The generator creates unique 5-character alphanumeric codes (excluding 'Q') and tiles them onto LETTER-sized paper for easy printing.
+The QR codes are unique 5-character alphanumeric codes (excluding 'Q').
 
 ## Features
 
@@ -42,7 +42,7 @@ You can run the tool using `uv run qr` or by installing it.
 # Basic usage: Generate 10 unique labels, each repeated twice
 uv run qr -c 10 -r 2
 
-# Using the SPEC argument (count[xrepeat][@scale])
+# Using the SPEC argument (COUNT[xREPEAT][@SCALE])
 uv run qr 5x3@1.5
 ```
 
@@ -84,3 +84,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## The Future
 
 - Support for more paper sizes and types including label paper
+- Ability to pass used codes
