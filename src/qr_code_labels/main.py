@@ -399,6 +399,7 @@ class Generator:
     help="If grouped, repeat codes until row is filled",
 )
 @click.option(
+    "-x",
     "--include-cut-lines",
     is_flag=True,
     help="Draw dotted lines for cutting",
