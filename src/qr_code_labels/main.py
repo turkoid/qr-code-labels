@@ -440,7 +440,9 @@ def cli(
     """
     try:
         if spec:
-            match = re.match(r"^\s*(\d+)(?:x(\d+))?(?:@(\d+(?:\.?\d+)?))?\s*$", spec)
+            match = re.match(
+                r"^\s*(\d+)(?:x(\d+))?(?:@(\d+(?:\.?\d+)?))?\s*$", spec.lower()
+            )
             if not match:
                 raise ValueError("SPEC is invalid")
             _count, _repeat, _scale = match.groups()
