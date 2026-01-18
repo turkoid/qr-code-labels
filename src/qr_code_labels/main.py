@@ -389,7 +389,7 @@ class Generator:
     help="Name of the file(s) generated",
 )
 @click.option(
-    "--grouped",
+    "--group",
     is_flag=True,
     help="Group same codes. Useful if using cut lines",
 )
@@ -422,7 +422,7 @@ def cli(
     count: int,
     repeat: int,
     scale: float,
-    grouped: bool,
+    group: bool,
     fill: bool,
     output: Path | None,
     name: str | None,
@@ -459,7 +459,7 @@ def cli(
             count=count,
             repeat=repeat,
             scale=scale,
-            group_codes=grouped,
+            group_codes=group,
             fill_group=fill,
             output_dir=output,
             name=name,
