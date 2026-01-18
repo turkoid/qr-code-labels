@@ -1,6 +1,8 @@
 import io
+import re
 import secrets
 import string
+import sys
 from pathlib import Path
 from typing import NamedTuple
 from typing import Self
@@ -352,23 +354,26 @@ class Generator:
 @click.option(
     "-n",
     "--count",
-    type=click.IntRange(min=1),
+    type=click.INT,
     default=1,
     help="Number of unique codes",
+    show_default=True,
 )
 @click.option(
     "-x",
     "--repeat",
-    type=click.IntRange(min=1),
+    type=click.INT,
     default=1,
     help="Number of copies",
+    show_default=True,
 )
 @click.option(
     "-s",
     "--scale",
-    type=click.FloatRange(min=1.0),
+    type=click.FLOAT,
     default=1.5,
     help="Scale factor (base = 1 inch)",
+    show_default=True,
 )
 @click.option(
     "-o",
@@ -405,31 +410,63 @@ class Generator:
     is_flag=True,
     help="Writes the generated codes to a text file relative '--output' directory",
 )
+@click.argument(
+    "spec",
+    default=None,
+)
 def cli(
     count: int,
     repeat: int,
     scale: float,
     grouped: bool,
     fill: bool,
-    output: Path,
-    name: str,
+    output: Path | None,
+    name: str | None,
     save_svgs: bool,
     save_codes: bool,
     include_cut_lines: bool,
+    spec: str | None,
 ) -> None:
-    generator = Generator(
-        count=count,
-        repeat=repeat,
-        scale=scale,
-        group_codes=grouped,
-        fill_group=fill,
-        output_dir=output,
-        name=name,
-        save_svgs=save_svgs,
-        save_codes=save_codes,
-        include_cut_lines=include_cut_lines,
-    )
-    generator.create_labels()
+    """
+    Generate QR Codes using a 5-character code (uppercase, alphanumeric, excluding 'Q')
+
+    Tile it and save it to a PDF file to be printed on LETTER sized paper
+
+    SPEC is an optional format spec that is {count}[x{repeat}][@{scale}]. This takes precedent over options
+    """
+    try:
+        if spec:
+            match = re.match(r"^\s*(\d+)(?:x(\d+))?(?:@(\d+(?:\.?\d+)?))?\s*$", spec)
+            if not match:
+                raise ValueError("SPEC is invalid")
+            _count, _repeat, _scale = match.groups()
+            count = count if _count is None else int(_count)
+            repeat = repeat if _repeat is None else int(_repeat)
+            scale = scale if _scale is None else float(_scale)
+
+        if count < 1:
+            raise ValueError(f"Invalid value for 'count': {count} is not >=1")
+        if repeat < 1:
+            raise ValueError(f"Invalid value for 'repeat': {repeat} is not >=1")
+        if scale < 1.0:
+            raise ValueError(f"Invalid value for 'scale': {scale} is not >=1.0")
+
+        generator = Generator(
+            count=count,
+            repeat=repeat,
+            scale=scale,
+            group_codes=grouped,
+            fill_group=fill,
+            output_dir=output,
+            name=name,
+            save_svgs=save_svgs,
+            save_codes=save_codes,
+            include_cut_lines=include_cut_lines,
+        )
+        generator.create_labels()
+    except ValueError as ex:
+        click.echo(f"ERROR: {ex}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
