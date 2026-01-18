@@ -86,14 +86,15 @@ class Generator:
         self.group_codes: bool = group_codes
         self.fill_group: bool = fill_group
         self.output_dir = output_dir or Path(".")
-        self.name = "" if name is None else name.strip(" -_")
+        self.name = name.strip() if name else ""
         self.save_svgs = save_svgs
         self.save_codes = save_codes
         self.include_cut_lines = include_cut_lines
 
-        _name = self.name.replace(" ", "-")
-        _name = f"{_name}_" if _name else ""
-        self._base_filename = f"qr_codes_{_name}{self.scale:0.2f}in"
+        if self.name:
+            self._base_filename = f"{self.name}-qr-codes"
+        else:
+            self._base_filename = f"qr-codes-{self.scale:0.2f}in"
         self._qr_size_px = int(self.scale * DPI)
         self._qr_label_dim = BASE_LABEL_DIM.scale(self.scale).resize(-1)
         self._common_defs: dict[str, svg.DrawingElement] = {}
@@ -226,7 +227,7 @@ class Generator:
             codes_file = self.output_dir.joinpath(filename)
             codes_file.parent.mkdir(parents=True, exist_ok=True)
             codes_file.write_text("\n".join(codes))
-            click.echo(f"Created ./{codes_file}")
+            click.echo(f"Created ./{codes_file.as_posix()}")
 
         combined_pdf = PdfWriter()
         metadata = {
@@ -240,7 +241,9 @@ class Generator:
         if self.save_svgs:
             svg_output_dir.mkdir(parents=True, exist_ok=True)
             svg_file_pattern = f"{self._base_filename}_p*.svg"
-            click.echo(f"Cleaning old '{svg_file_pattern}' in ./{svg_output_dir}")
+            click.echo(
+                f"Cleaning old '{svg_file_pattern}' in ./{svg_output_dir.as_posix()}"
+            )
             for file in svg_output_dir.glob(svg_file_pattern):
                 if file.is_file():
                     file.unlink()
@@ -260,14 +263,16 @@ class Generator:
             combined_pdf.append(pdf_buf)
 
         if self.save_svgs:
-            click.echo(f"Created {len(self._pages)} svg file(s) in ./{svg_output_dir}")
+            click.echo(
+                f"Created {len(self._pages)} svg file(s) in ./{svg_output_dir.as_posix()}"
+            )
 
         filename = f"{self._base_filename}.pdf"
         pdf_file = self.output_dir.joinpath(filename)
         pdf_file.parent.mkdir(parents=True, exist_ok=True)
         combined_pdf.write(pdf_file)
 
-        click.echo(f"Created ./{pdf_file}")
+        click.echo(f"Created ./{pdf_file.as_posix()}")
 
     def create_labels(self) -> None:
         codes = self.generate_codes()
