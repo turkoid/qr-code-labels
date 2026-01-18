@@ -454,8 +454,10 @@ def cli(
             raise ValueError(f"Invalid value for 'count': {count} is not >=1")
         if repeat < 1:
             raise ValueError(f"Invalid value for 'repeat': {repeat} is not >=1")
-        if scale < 1.0:
-            raise ValueError(f"Invalid value for 'scale': {scale} is not >=1.0")
+        if not 1.0 <= scale <= 3.5:
+            raise ValueError(
+                f"Invalid value for 'scale': {scale} is not >=1.0 and <=3.5"
+            )
 
         generator = Generator(
             count=count,
