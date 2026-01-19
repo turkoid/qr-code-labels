@@ -127,6 +127,7 @@ class Generator:
         qr_size = self._qr_size_px
         if self.include_cut_lines:
             qr_size += 1
+
         for y, row_codes in enumerate(page_codes):
             for x, code in enumerate(row_codes):
                 page.append(
@@ -288,22 +289,31 @@ class Generator:
 
         self._create_common_defs()
 
-        if self.group_codes and self.fill_group:
-            width = int(self._grid_dim.width)
-            _repeat = ((self.repeat - 1) // width + 1) * width
-        else:
-            _repeat = self.repeat
+        adjusted_repeat = self.repeat
+        groups_per_row = self._grid_dim.width
+        if self.group_codes:
+            if self.fill_group:
+                groups_per_row = 1
+                width = int(self._grid_dim.width)
+                adjusted_repeat = ((self.repeat - 1) // width + 1) * width
+            else:
+                groups_per_row = max(1, int(self._grid_dim.width / adjusted_repeat))
 
         click.echo(
-            f"Generating {self.count}, {self.scale:0.2f}in QR codes, repeated {_repeat} times each"
+            f"Generating {self.count}, {self.scale:0.2f}in QR codes, repeated {adjusted_repeat} times each"
         )
         row = 0
         col = 0
         page_codes: list[list[svg.DrawingParentElement]] = []
+        group_count = 0
+
         for code in codes:
-            if self.group_codes and page_codes:
+            if self.group_codes and page_codes and group_count == groups_per_row:
+                group_count = 0
                 row += 1
                 col = 0
+            group_count += 1
+
             # generate qr code
             qr = segno.make(code, error="h")
             svg_id = f"{code}_qr"
@@ -335,7 +345,7 @@ class Generator:
             )
             qr_code_with_label.append(svg.Use(code_text, 0, 0))
 
-            for _ in range(_repeat):
+            for _ in range(adjusted_repeat):
                 if col == self._grid_dim.width:
                     row += 1
                     col = 0
